@@ -150,10 +150,10 @@ def execute_buy():
         if krw > 5000:
             result = upbit.buy_market_order("KRW-BTC", krw*0.9995)
             print("Buy order successful:", result)
-            send_slack_message('#coinautotrade', "Buy order successful: " + str(result))
+            send_slack_message('#coinautotade', "Buy order successful: " + str(result))
     except Exception as e:
         print(f"Failed to execute buy order: {e}")
-        send_slack_message('#coinautotrade', "Failed to execute buy order: " + str(e))
+        send_slack_message('#coinautotade', "Failed to execute buy order: " + str(e))
 
 def execute_sell():
     print("Attempting to sell BTC...")
@@ -163,10 +163,10 @@ def execute_sell():
         if current_price*btc > 5000:
             result = upbit.sell_market_order("KRW-BTC", btc)
             print("Sell order successful:", result)
-            send_slack_message('#coinautotrade', "Sell order successful: " + str(result))
+            send_slack_message('#coinautotade', "Sell order successful: " + str(result))
     except Exception as e:
         print(f"Failed to execute sell order: {e}")
-        send_slack_message('#coinautotrade', "Failed to execute sell order: " + str(e))
+        send_slack_message('#coinautotade', "Failed to execute sell order: " + str(e))
 
 
 
@@ -187,7 +187,8 @@ def make_decision_and_execute():
 
 if __name__ == "__main__":
     make_decision_and_execute()
-    schedule.every().hour.at(":56").do(make_decision_and_execute)
+    schedule.every().hour.at(":57").do(make_decision_and_execute)
+    #schedule.every().minute.do(make_decision_and_execute)
 
     while True:
         schedule.run_pending()
