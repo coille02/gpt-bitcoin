@@ -8,10 +8,20 @@ import json
 from openai import OpenAI
 import schedule
 import time
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 
 # Setup
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 upbit = pyupbit.Upbit(os.getenv("UPBIT_ACCESS_KEY"), os.getenv("UPBIT_SECRET_KEY"))
+
+def send_slack_message(channel, message):
+    client = WebClient(token=os.getenv('SLACK_BOT_TOKEN'))
+    try:
+        response = client.chat_postMessage(channel=channel, text=message)
+        print(f"Message sent to {channel}: {message}")
+    except SlackApiError as e:
+        print(f"Failed to send message to Slack: {e.response['error']}")
 
 def get_current_status():
     orderbook = pyupbit.get_orderbook(ticker="KRW-BTC")
@@ -112,6 +122,27 @@ def analyze_data_with_gpt4(data_json):
         print(f"Error in analyzing data with GPT-4: {e}")
         return None
 
+# def execute_buy():
+#     print("Attempting to buy BTC...")
+#     try:
+#         krw = upbit.get_balance("KRW")
+#         if krw > 5000:
+#             result = upbit.buy_market_order("KRW-BTC", krw*0.9995)
+#             print("Buy order successful:", result)
+#     except Exception as e:
+#         print(f"Failed to execute buy order: {e}")
+
+# def execute_sell():
+#     print("Attempting to sell BTC...")
+#     try:
+#         btc = upbit.get_balance("BTC")
+#         current_price = pyupbit.get_orderbook(ticker="KRW-BTC")['orderbook_units'][0]["ask_price"]
+#         if current_price*btc > 5000:
+#             result = upbit.sell_market_order("KRW-BTC", btc)
+#             print("Sell order successful:", result)
+#     except Exception as e:
+        print(f"Failed to execute sell order: {e}")
+
 def execute_buy():
     print("Attempting to buy BTC...")
     try:
@@ -119,8 +150,10 @@ def execute_buy():
         if krw > 5000:
             result = upbit.buy_market_order("KRW-BTC", krw*0.9995)
             print("Buy order successful:", result)
+            send_slack_message('#coinautotrade', "Buy order successful: " + str(result))
     except Exception as e:
         print(f"Failed to execute buy order: {e}")
+        send_slack_message('#coinautotrade', "Failed to execute buy order: " + str(e))
 
 def execute_sell():
     print("Attempting to sell BTC...")
@@ -130,8 +163,12 @@ def execute_sell():
         if current_price*btc > 5000:
             result = upbit.sell_market_order("KRW-BTC", btc)
             print("Sell order successful:", result)
+            send_slack_message('#coinautotrade', "Sell order successful: " + str(result))
     except Exception as e:
         print(f"Failed to execute sell order: {e}")
+        send_slack_message('#coinautotrade', "Failed to execute sell order: " + str(e))
+
+
 
 def make_decision_and_execute():
     print("Making decision and executing...")
@@ -150,7 +187,7 @@ def make_decision_and_execute():
 
 if __name__ == "__main__":
     make_decision_and_execute()
-    schedule.every().hour.at(":01").do(make_decision_and_execute)
+    schedule.every().hour.at(":52").do(make_decision_and_execute)
 
     while True:
         schedule.run_pending()
