@@ -187,7 +187,7 @@ def make_decision_and_execute():
 
 if __name__ == "__main__":
     make_decision_and_execute()
-    schedule.every().hour.at(":52").do(make_decision_and_execute)
+    schedule.every().hour.at(":56").do(make_decision_and_execute)
 
     while True:
         schedule.run_pending()
