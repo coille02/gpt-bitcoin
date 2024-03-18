@@ -142,8 +142,8 @@ def analyze_data_with_gpt4(data_json):
             response_format={"type":"json_object"}
         )
         # Print the response content to console
-        print("OpenAI GPT-4 Response:")
-        print(response)
+        # print("OpenAI GPT-4 Response:")
+        # print(response)
         advice = json.loads(response.choices[0].message.content)
         
         # Assuming advice structure is as provided in your example
