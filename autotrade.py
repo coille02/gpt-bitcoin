@@ -23,10 +23,10 @@ slack_client = WebClient(token=os.getenv('SLACK_BOT_TOKEN'))
 
 def send_slack_message(channel, message):
     try:
-        response = slack_client.chat_postMessage(channel=channel, text=message)
-        print(f"Message sent to {channel}: {message}")
+        slack_client.chat_postMessage(channel=channel, text=message)
+        print(f"{channel}에 메시지 전송 완료: {message}")
     except SlackApiError as e:
-        print(f"Failed to send message to Slack: {e.response['error']}")
+        print(f"슬랙 메시지 전송 실패: {e.response['error']}")
 
 
 
@@ -132,20 +132,18 @@ def analyze_data_with_gpt4(data_json):
         current_status = get_current_status(coins)  # Now passing coins list
         response = client.chat.completions.create(
             model="gpt-4-turbo-preview",
-            # model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": instructions},
                 {"role": "user", "content": data_json},
                 {"role": "user", "content": current_status}
             ],
-            stop=["\n"],
             response_format={"type":"json_object"}
         )
         # Print the response content to console
         # print("OpenAI GPT-4 Response:")
         # print(response)
         advice = json.loads(response.choices[0].message.content)
-        
+        print(advice)
         # Assuming advice structure is as provided in your example
         decisions = advice.get("decisions", {})
         investment_strategy = advice.get("investment_strategy", {})
@@ -154,36 +152,77 @@ def analyze_data_with_gpt4(data_json):
         # Normalize buying_ratios from percentages to decimals for computation
         for coin, ratio in buying_ratios.items():
             buying_ratios[coin] = float(ratio.strip('%')) / 100
-
         return decisions, buying_ratios
     except Exception as e:
         error_message = f"Error in analyzing data with GPT-4: {e}"
         print(error_message)
+        print(f"Response content: {response.content}")
         send_slack_message('#coinautotade', error_message)  # Ensure the correct channel name
         return {}, {}
 
 
+def calculate_total_krw_value(coins):
+    total_krw_value = 0
+    for coin in coins:
+        coin_balance = upbit.get_balance(coin)
+        current_price = pyupbit.get_current_price(f"KRW-{coin}")
+        krw_value = coin_balance * current_price
+        total_krw_value += krw_value
+    return total_krw_value
+
 def make_decision_and_execute():
-    print("Making decision and executing...")
+    print("의사 결정을 내리고 실행 중...")
     coins = ["BTC", "SOL", "SHIB"]
-    data_json = fetch_and_prepare_data()  # Assume this provides the required data for analysis
+    data_json = fetch_and_prepare_data()  # 분석에 필요한 데이터를 제공한다고 가정합니다.
     decisions, buying_ratios = analyze_data_with_gpt4(data_json)
 
-    # Calculate total investable amount as 10% of the KRW balance
+    # 총 투자 가능 금액 계산
     total_investment_amount = get_total_investment_amount()
+
+    # 거래 전 KRW 잔액과 총 가치 기록
+    krw_balance_before_trading = upbit.get_balance("KRW")
+    total_value_before_trading = krw_balance_before_trading + calculate_total_krw_value(coins)
+
+    total_fees = 0  # 총 수수료 초기화
 
     for coin in coins:
         decision = decisions.get(coin, {}).get('decision', 'hold')
         reason = decisions.get(coin, {}).get('reason', '')
         ratio = buying_ratios.get(coin, 0)
-        amount_to_invest = total_investment_amount * ratio
-
-        if decision == 'buy' and amount_to_invest > 0:
-            execute_buy(coin, amount_to_invest, reason)
-        elif decision == 'sell':
-            execute_sell(coin, reason)
+        
+        # 현재 잔액 확인 및 목표 잔액 계산
+        coin_balance = upbit.get_balance(coin)
+        current_price = pyupbit.get_current_price(f"KRW-{coin}")
+        
+        target_balance_krw = total_investment_amount * ratio
+        target_balance = target_balance_krw / current_price
+        
+        if decision == 'buy':
+            if coin_balance < target_balance:
+                amount_to_invest = (target_balance - coin_balance) * current_price
+                result = execute_buy(coin, amount_to_invest, reason)
+                if result:
+                    total_fees += result['reserved_fee']  # 수수료 누적
+            else:
+                print(f"{coin}의 잔액이 충분하므로 매수를 건너뜁니다.")
+        elif decision == 'sell' and coin_balance > 0:
+            result = execute_sell(coin, reason)
+            if result:
+                total_fees += result['reserved_fee']  # 수수료 누적
         else:
-            print(f"Holding {coin}: {reason}")
+            print(f"{coin} 보유 중: {reason}")
+
+    # 거래 후 KRW 잔액과 총 가치 기록
+    krw_balance_after_selling = upbit.get_balance("KRW")
+    total_value_after_trading = krw_balance_after_selling + calculate_total_krw_value(coins)
+
+    # 수익금과 수익률 계산
+    profit = total_value_after_trading - total_value_before_trading - total_fees
+    profit_ratio = (profit / total_value_before_trading) * 100
+
+    # 계산된 값을 슬랙 메시지로 전송
+    settlement_msg = f"거래 전 KRW 잔액: {krw_balance_before_trading}, 매도 후 KRW 잔액: {krw_balance_after_selling}, 총 수수료(KRW): {total_fees}, 수익금(KRW): {profit}, 수익률(%): {profit_ratio:.2f}"
+    send_slack_message('#coinautotade', settlement_msg)
 
 
 def get_total_investment_amount():
@@ -203,30 +242,29 @@ def get_total_investment_amount():
         krw_value = coin_balance * current_price  # Calculate KRW value of holdings
         total_krw_value_of_coins += krw_value  # Add to total KRW value of coin holdings
     
-    # Calculate total investment amount as 50% of the sum of KRW balance and total KRW value of coin holdings
-    total_investment_amount = (krw_balance + total_krw_value_of_coins) * 0.50
+    # Calculate total investment amount as 100% of the sum of KRW balance and total KRW value of coin holdings
+    total_investment_amount = (krw_balance + total_krw_value_of_coins) * 1.00  # 100% of total value
     
     return total_investment_amount
 
 
 def execute_buy(coin, amount, reason):
     if amount < 5000:
-        print(f"Buy amount for {coin} is below the minimum transaction amount of 5000 KRW. Skipping.")
+        print(f"{coin} 매수 금액이 최소 거래 금액인 5000 KRW 미만입니다. 건너뜁니다.")
         return
     
     try:
-        print(f"Attempting to buy {coin} for {amount} KRW. Reason: {reason}")
+        print(f"{amount} KRW 만큼 {coin} 매수 시도 중. 이유: {reason}")
         result = upbit.buy_market_order(f"KRW-{coin}", amount)
         
-        # Simplify the message to include relevant information
-        message = f"Buy order for {coin} successful: KRW balance used: {result['price']}, Number of coins purchased (estimated): {amount / float(result['price'])}"
+        # 관련 정보만 포함하도록 메시지 단순화
+        message = f"{coin} 매수 주문 성공: 사용된 KRW 잔액: {result['price']}, 매수한 코인 수량(추정치): {amount / float(result['price'])}"
         print(message)
         send_slack_message('#coinautotade', message)
     except Exception as e:
-        error_message = f"Failed to execute buy order for {coin}: {e}"
+        error_message = f"{coin} 매수 주문 실패: {e}"
         print(error_message)
         send_slack_message('#coinautotade', error_message)
-
 
 def execute_sell(coin, reason):
     coin_balance = upbit.get_balance(coin)
@@ -234,19 +272,19 @@ def execute_sell(coin, reason):
     total_value = coin_balance * current_price
     
     if total_value < 5000:
-        print(f"Sell value for {coin} is below the minimum transaction amount of 5000 KRW. Skipping.")
+        print(f"{coin} 매도 금액이 최소 거래 금액인 5000 KRW 미만입니다. 건너뜁니다.")
         return
     
     try:
-        print(f"Attempting to sell all holdings of {coin}. Reason: {reason}")
+        print(f"{coin} 보유량 전량 매도 시도 중. 이유: {reason}")
         result = upbit.sell_market_order(f"KRW-{coin}", coin_balance)
         
-        # Simplify the message to include relevant information
-        message = f"Sell order for {coin} successful: Number of coins sold: {result['volume']}, Total KRW received (estimated): {float(result['volume']) * current_price}"
+        # 관련 정보만 포함하도록 메시지 단순화
+        message = f"{coin} 매도 주문 성공: 매도한 코인 수량: {result['volume']}, 받은 총 KRW(추정치): {float(result['volume']) * current_price}"
         print(message)
         send_slack_message('#coinautotade', message)
     except Exception as e:
-        error_message = f"Failed to execute sell order for {coin}: {e}"
+        error_message = f"{coin} 매도 주문 실패: {e}"
         print(error_message)
         send_slack_message('#coinautotade', error_message)
 
