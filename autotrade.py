@@ -253,20 +253,30 @@ def get_total_investment_amount():
 def execute_buy(coin, amount, reason):
     if amount < 5000:
         print(f"{coin} 매수 금액이 최소 거래 금액인 5000 KRW 미만입니다. 건너뜁니다.")
-        return
+        return None
     
     try:
         print(f"{amount:,.0f} KRW 만큼 {coin} 매수 시도 중. 이유: {reason}")
         result = upbit.buy_market_order(f"KRW-{coin}", amount)
         
-        # 관련 정보만 포함하도록 메시지 단순화
-        message = f"{coin} 매수 주문 성공: 사용된 KRW 잔액: {result['price']:,.0f}, 매수한 코인 수량(추정치): {amount / float(result['price']):.6f}"
-        print(message)
-        send_slack_message('#coinautotade', message)
+        # 주문 결과 확인
+        order_id = result['uuid']
+        order_info = upbit.get_order(order_id)
+        if order_info is not None and order_info['state'] == 'done':
+            message = f"{coin} 매수 주문 성공: 사용된 KRW 잔액: {order_info['price']:,.0f}, 매수한 코인 수량: {order_info['executed_volume']:.6f}, 수수료: {order_info['paid_fee']:,.0f}"
+            print(message)
+            send_slack_message('#coinautotade', message)
+        else:
+            error_message = f"{coin} 매수 주문이 완료되지 않았습니다. 주문 상태: {order_info['state'] if order_info is not None else 'Unknown'}"
+            print(error_message)
+            send_slack_message('#coinautotade', error_message)
+        
+        return order_info
     except Exception as e:
-        error_message = f"{coin} 매수 주문 실패: {e}"
+        error_message = f"{coin} 매수 주문 실패: {str(e)}"
         print(error_message)
         send_slack_message('#coinautotade', error_message)
+        return None
 
 def execute_sell(coin, reason):
     coin_balance = upbit.get_balance(coin)
@@ -275,20 +285,30 @@ def execute_sell(coin, reason):
     
     if total_value < 5000:
         print(f"{coin} 매도 금액이 최소 거래 금액인 5000 KRW 미만입니다. 건너뜁니다.")
-        return
+        return None
     
     try:
         print(f"{coin} 보유량 전량 매도 시도 중. 이유: {reason}")
         result = upbit.sell_market_order(f"KRW-{coin}", coin_balance)
         
-        # 관련 정보만 포함하도록 메시지 단순화
-        message = f"{coin} 매도 주문 성공: 매도한 코인 수량: {result['volume']:.6f}, 받은 총 KRW(추정치): {float(result['volume']) * current_price:,.0f}"
-        print(message)
-        send_slack_message('#coinautotade', message)
+        # 주문 결과 확인
+        order_id = result['uuid']
+        order_info = upbit.get_order(order_id)
+        if order_info is not None and order_info['state'] == 'done':
+            message = f"{coin} 매도 주문 성공: 매도한 코인 수량: {order_info['executed_volume']:.6f}, 받은 총 KRW: {order_info['price']:,.0f}, 수수료: {order_info['paid_fee']:,.0f}"
+            print(message)
+            send_slack_message('#coinautotade', message)
+        else:
+            error_message = f"{coin} 매도 주문이 완료되지 않았습니다. 주문 상태: {order_info['state'] if order_info is not None else 'Unknown'}"
+            print(error_message)
+            send_slack_message('#coinautotade', error_message)
+        
+        return order_info
     except Exception as e:
-        error_message = f"{coin} 매도 주문 실패: {e}"
+        error_message = f"{coin} 매도 주문 실패: {str(e)}"
         print(error_message)
         send_slack_message('#coinautotade', error_message)
+        return None
 
 
 if __name__ == "__main__":
