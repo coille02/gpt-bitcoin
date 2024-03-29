@@ -181,7 +181,8 @@ def make_decision_and_execute():
 
     # 거래 전 KRW 잔액과 총 가치 기록
     krw_balance_before_trading = upbit.get_balance("KRW")
-    total_value_before_trading = krw_balance_before_trading + calculate_total_krw_value(coins)
+    coin_value_before_trading = calculate_total_krw_value(coins)
+    total_value_before_trading = krw_balance_before_trading + coin_value_before_trading
 
     total_fees = 0  # 총 수수료 초기화
 
@@ -213,15 +214,16 @@ def make_decision_and_execute():
             print(f"{coin} 보유 중: {reason}")
 
     # 거래 후 KRW 잔액과 총 가치 기록
-    krw_balance_after_selling = upbit.get_balance("KRW")
-    total_value_after_trading = krw_balance_after_selling + calculate_total_krw_value(coins)
+    krw_balance_after_trading = upbit.get_balance("KRW")
+    coin_value_after_trading = calculate_total_krw_value(coins)
+    total_value_after_trading = krw_balance_after_trading + coin_value_after_trading
 
     # 수익금과 수익률 계산
     profit = total_value_after_trading - total_value_before_trading - total_fees
     profit_ratio = (profit / total_value_before_trading) * 100
 
     # 계산된 값을 슬랙 메시지로 전송
-    settlement_msg = f"거래 전 KRW 잔액: {krw_balance_before_trading}, 매도 후 KRW 잔액: {krw_balance_after_selling}, 총 수수료(KRW): {total_fees}, 수익금(KRW): {profit}, 수익률(%): {profit_ratio:.2f}"
+    settlement_msg = f"거래 전 총 자산 가치(KRW): {total_value_before_trading:,.0f}, 거래 후 총 자산 가치(KRW): {total_value_after_trading:,.0f}, 총 수수료(KRW): {total_fees:,.0f}, 수익금(KRW): {profit:,.0f}, 수익률(%): {profit_ratio:.2f}"
     send_slack_message('#coinautotade', settlement_msg)
 
 
@@ -254,11 +256,11 @@ def execute_buy(coin, amount, reason):
         return
     
     try:
-        print(f"{amount} KRW 만큼 {coin} 매수 시도 중. 이유: {reason}")
+        print(f"{amount:,.0f} KRW 만큼 {coin} 매수 시도 중. 이유: {reason}")
         result = upbit.buy_market_order(f"KRW-{coin}", amount)
         
         # 관련 정보만 포함하도록 메시지 단순화
-        message = f"{coin} 매수 주문 성공: 사용된 KRW 잔액: {result['price']}, 매수한 코인 수량(추정치): {amount / float(result['price'])}"
+        message = f"{coin} 매수 주문 성공: 사용된 KRW 잔액: {result['price']:,.0f}, 매수한 코인 수량(추정치): {amount / float(result['price']):.6f}"
         print(message)
         send_slack_message('#coinautotade', message)
     except Exception as e:
@@ -280,7 +282,7 @@ def execute_sell(coin, reason):
         result = upbit.sell_market_order(f"KRW-{coin}", coin_balance)
         
         # 관련 정보만 포함하도록 메시지 단순화
-        message = f"{coin} 매도 주문 성공: 매도한 코인 수량: {result['volume']}, 받은 총 KRW(추정치): {float(result['volume']) * current_price}"
+        message = f"{coin} 매도 주문 성공: 매도한 코인 수량: {result['volume']:.6f}, 받은 총 KRW(추정치): {float(result['volume']) * current_price:,.0f}"
         print(message)
         send_slack_message('#coinautotade', message)
     except Exception as e:
