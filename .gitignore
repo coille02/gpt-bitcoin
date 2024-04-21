@@ -1,3 +1,4 @@
 .env
 test.py
 output.log
+trading_decisions.sqlite
