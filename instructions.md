@@ -44,7 +44,7 @@ Example structure for the updated Current Investment Status JSON data is as foll
     "BTC":
     {
         "current_time": "<timestamp in milliseconds since the Unix epoch>",
-        "orderbook": 
+        "orderbook":
         {
             "market": "KRW-BTC",
             "timestamp": "<timestamp of the orderbook in milliseconds since the Unix epoch>",
@@ -74,7 +74,7 @@ Example structure for the updated Current Investment Status JSON data is as foll
     "SOL":
     {
         "current_time": "<timestamp in milliseconds since the Unix epoch>",
-        "orderbook": 
+        "orderbook":
         {
             "market": "KRW-SOL",
             "timestamp": "<timestamp of the orderbook in milliseconds since the Unix epoch>",
@@ -104,7 +104,7 @@ Example structure for the updated Current Investment Status JSON data is as foll
     "SHIB":
     {
         "current_time": "<timestamp in milliseconds since the Unix epoch>",
-        "orderbook": 
+        "orderbook":
         {
             "market": "KRW-SHIB",
             "timestamp": "<timestamp of the orderbook in milliseconds since the Unix epoch>",
@@ -143,7 +143,7 @@ Example structure for the updated Current Investment Status JSON data is as foll
 
 ### Clarification on Ask and Bid Prices
 - **Ask Price**: The minimum price a seller accepts. Use this for buy decisions to determine the cost of acquiring Coin.
-- **Bid Price**: The maximum price a buyer offers. Relevant for sell decisions, it reflects the potential selling return.    
+- **Bid Price**: The maximum price a buyer offers. Relevant for sell decisions, it reflects the potential selling return.
 
 ### Instruction Workflow
 1. **Analyze Market and Orderbook**: Assess market trends and liquidity. Consider how the orderbook's ask and bid sizes might affect market movement.
