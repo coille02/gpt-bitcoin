@@ -20,21 +20,19 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 upbit = pyupbit.Upbit(os.getenv("UPBIT_ACCESS_KEY"), os.getenv("UPBIT_SECRET_KEY"))
 slack_client = WebClient(token=os.getenv('SLACK_BOT_TOKEN'))
 
-
 def send_slack_message(channel, message, order_info=None, coin=None, is_buy=True):
     try:
         if order_info and coin:
             if is_buy:
                 message_str = f"{coin} 매수 주문 성공: 사용된 KRW 잔액: {str(order_info['price'])}, 매수한 코인 수량: {str(order_info['executed_volume'])}, 수수료: {str(order_info['reserved_fee'])}"
             else:
-                message_str = f"{coin} 매도 주문 성공: 매도한 코인 수량: {str(order_info['executed_volume'])}, 받은 총 KRW: {str(order_info['trades'][0]['price'] if order_info['trades'] else '알 수 없음')}, 수수료: {str(order_info['reserved_fee'])}"
+                message_str = f"{coin} 매도 주문 성공: 매도한 코인 수량: {str(order_info['executed_volume'])}"
         else:
             message_str = str(message)
         slack_client.chat_postMessage(channel=channel, text=message_str)
         print(f"{channel}에 메시지 전송 완료: {message_str}")
     except SlackApiError as e:
         print(f"슬랙 메시지 전송 실패: {e.response['error']}")
-
 
 def initialize_db(db_path='trading_decisions.sqlite'):
     with sqlite3.connect(db_path) as conn:
@@ -259,7 +257,7 @@ def analyze_data_with_gpt4(news_data, data_json, last_decisions, fear_and_greed,
             return None
 
         response = openai.ChatCompletion.create(
-            model="gpt-4o-2024-05-13",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": instructions},
                 {"role": "user", "content": news_data},
@@ -270,9 +268,9 @@ def analyze_data_with_gpt4(news_data, data_json, last_decisions, fear_and_greed,
             ],
             response_format={"type":"json_object"}
         )
-        advice = response['choices'][0]['message']['content']
+        advice = response.choices[0].message.content
         return advice
-    except Exception as e:
+    except openai.error.OpenAIError as e:
         print(f"Error in analyzing data with GPT-4: {e}")
         return None
 
@@ -332,8 +330,9 @@ def make_decision_and_execute():
         for attempt in range(max_retries):
             try:
                 advice = analyze_data_with_gpt4(news_data, json.dumps(data_json), json.dumps(last_decisions), fear_and_greed, json.dumps(current_status))
-                decision = json.loads(advice)
-                break
+                if advice:
+                    decision = json.loads(advice)
+                    break
             except json.JSONDecodeError as e:
                 print(f"JSON parsing failed: {e}. Retrying in {retry_delay_seconds} seconds...")
                 time.sleep(retry_delay_seconds)
