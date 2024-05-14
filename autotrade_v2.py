@@ -13,6 +13,7 @@ import sqlite3
 import argparse
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+import openai
 
 # Setup
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
