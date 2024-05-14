@@ -5,7 +5,6 @@ import pyupbit
 import pandas as pd
 import pandas_ta as ta
 import json
-from openai import OpenAI
 import schedule
 import time
 import requests
@@ -27,7 +26,7 @@ def send_slack_message(channel, message, order_info=None, coin=None, is_buy=True
             if is_buy:
                 message_str = f"{coin} 매수 주문 성공: 사용된 KRW 잔액: {str(order_info['price'])}, 매수한 코인 수량: {str(order_info['executed_volume'])}, 수수료: {str(order_info['reserved_fee'])}"
             else:
-                message_str = f"{coin} 매도 주문 성공: 매도한 코인 수량: {str(order_info['executed_volume'])}, 받은 총 KRW: {str(order_info['price'])}, 수수료: {str(order_info['reserved_fee'])}"
+                message_str = f"{coin} 매도 주문 성공: 매도한 코인 수량: {str(order_info['executed_volume'])}, 받은 총 KRW: {str(order_info['trades'][0]['price'] if order_info['trades'] else '알 수 없음')}, 수수료: {str(order_info['reserved_fee'])}"
         else:
             message_str = str(message)
         slack_client.chat_postMessage(channel=channel, text=message_str)
@@ -66,6 +65,7 @@ def save_decision_to_db(ticker, decision, current_status):
         
         # Preparing data for insertion
         data_to_insert = (
+            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             ticker,
             decision.get('decision'),
             decision.get('percentage', 100),  # Defaulting to 100 if not provided
@@ -79,7 +79,7 @@ def save_decision_to_db(ticker, decision, current_status):
         # Inserting data into the database
         cursor.execute('''
             INSERT INTO decisions (timestamp, ticker, decision, percentage, reason, coin_balance, krw_balance, coin_avg_buy_price, coin_price)
-            VALUES (datetime('now', 'localtime'), ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', data_to_insert)
     
         conn.commit()
@@ -259,7 +259,7 @@ def analyze_data_with_gpt4(news_data, data_json, last_decisions, fear_and_greed,
             return None
 
         response = client.chat.completions.create(
-            model="gpt-4-turbo-preview",
+            model="gpt-4o-2024-05-13",
             messages=[
                 {"role": "system", "content": instructions},
                 {"role": "user", "content": news_data},
@@ -270,7 +270,7 @@ def analyze_data_with_gpt4(news_data, data_json, last_decisions, fear_and_greed,
             ],
             response_format={"type":"json_object"}
         )
-        advice = response.choices[0].message.content
+        advice = response['choices'][0]['message']['content']
         return advice
     except Exception as e:
         print(f"Error in analyzing data with GPT-4: {e}")
