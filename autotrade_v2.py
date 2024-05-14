@@ -16,7 +16,7 @@ from slack_sdk.errors import SlackApiError
 import openai
 
 # Setup
-client = openai(api_key=os.getenv("OPENAI_API_KEY"))
+openai.api_key = os.getenv("OPENAI_API_KEY")
 upbit = pyupbit.Upbit(os.getenv("UPBIT_ACCESS_KEY"), os.getenv("UPBIT_SECRET_KEY"))
 slack_client = WebClient(token=os.getenv('SLACK_BOT_TOKEN'))
 
@@ -133,7 +133,6 @@ def get_current_status(ticker):
 
     current_status = {'current_time': current_time, 'orderbook': orderbook, 'coin_balance': coin_balance, 'krw_balance': krw_balance, 'coin_avg_buy_price': coin_avg_buy_price}
     return json.dumps(current_status)
-
 
 def fetch_and_prepare_data(ticker):
     # Fetch data
@@ -259,7 +258,7 @@ def analyze_data_with_gpt4(news_data, data_json, last_decisions, fear_and_greed,
             print("No instructions found.")
             return None
 
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4o-2024-05-13",
             messages=[
                 {"role": "system", "content": instructions},
